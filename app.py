@@ -295,20 +295,19 @@ def generate_image(
     if pose_image_path is not None:
         pose_image = load_image(pose_image_path)
         pose_image = resize_img(pose_image, max_side=1024)
-        img_controlnet = pose_image
         pose_image_cv2 = convert_from_image_to_cv2(pose_image)
 
-        face_info = app.get(pose_image_cv2)
+        face_info_pose = app.get(pose_image_cv2)
 
-        if len(face_info) == 0:
+        if len(face_info_pose) == 0:
             print("[Info] No human face in pose image — using pose image as control.")
             face_kps = pose_image
 
         else:
-            face_info = face_info[-1]
+            img_controlnet = pose_image
+            face_info = face_info_pose[-1]
             face_kps = draw_kps(pose_image, face_info["kps"])
-
-        width, height = face_kps.size
+            width, height = face_kps.size
 
     if enhance_face_region:
         control_mask = np.zeros([height, width, 3])
@@ -324,34 +323,26 @@ def generate_image(
 
     if len(controlnet_selection) > 0:
         controlnet_scales = {
-            # "pose": pose_strength,
+            #"pose": pose_strength,
             "canny": canny_strength,
             "depth": depth_strength,
         }
-        if len(face_info) == 0 or force_clip_embedding:
-            controlnets = [controlnet_map[s] for s in controlnet_selection]
-            control_scales = [controlnet_scales[s] for s in controlnet_selection]
-            control_images = [
-                controlnet_map_fn[s](img_controlnet).resize((width, height))
-                for s in controlnet_selection
-            ]
-        else:
-            controlnets = [controlnet_identitynet] + [
-                controlnet_map[s] for s in controlnet_selection
-            ]
-            control_scales = [float(identitynet_strength_ratio)] + [
-                controlnet_scales[s] for s in controlnet_selection
-            ]
-            control_images = [face_kps] + [
-                controlnet_map_fn[s](img_controlnet).resize((width, height))
-                for s in controlnet_selection
-            ]
-
-        pipe.controlnet = MultiControlNetModel(controlnets)
+        pipe.controlnet = MultiControlNetModel(
+            [controlnet_identitynet]
+            + [controlnet_map[s] for s in controlnet_selection]
+        )
+        control_scales = [float(identitynet_strength_ratio)] + [
+            controlnet_scales[s] for s in controlnet_selection
+        ]
+        control_images = [face_kps] + [
+            controlnet_map_fn[s](img_controlnet).resize((width, height))
+            for s in controlnet_selection
+        ]
     else:
         pipe.controlnet = controlnet_identitynet
         control_scales = float(identitynet_strength_ratio)
         control_images = face_kps
+
 
     generator = torch.Generator(device=device).manual_seed(seed)
 
@@ -396,9 +387,9 @@ def get_next_output_folder(base_dir="output"):
 
 if __name__ == "__main__":
 
-    face_file = "./examples/yann-lecun_resize.jpg"
-    pose_file = "./examples/poses/pose2.jpg"
-    prompt = "a man"
+    face_file = "./examples/casual_asian_man.png"
+    pose_file = "./examples/poses/1.jpg"
+    prompt = "A cyborg male with blue-white hair and glowing robotic armor stands in a neon-lit city. His piercing eyes show intelligence as vibrant lights and sleek architecture evoke a cyberpunk sci-fi world. You must not change the facial, body features and gender of the source image. Make the image as realistic as possible."
     style = "(No style)"
     negative_prompt = "(lowres, low quality, worst quality:1.2), (text:1.2), watermark, (frame:1.2), deformed, ugly, deformed eyes, blur, out of focus, blurry, deformed cat, deformed, photo, anthropomorphic cat, monochrome, photo, pet collar, gun, weapon, blue, 3d, drones, drone, buildings in background, green"
 
@@ -414,7 +405,7 @@ if __name__ == "__main__":
         # 0.4,  # pose_strength
         0.3,  # canny_strength
         0.5,  # depth_strength
-        ["depth", "canny"],  # controlnet_selection
+        ["depth"],  # controlnet_selection
         5.0,  # guidance_scale
         "EulerDiscreteScheduler",  # scheduler
         False,  # enable_LCM

@@ -29,3 +29,4 @@ dist/
 # code folders
 checkpoints/
 models/
+output/
