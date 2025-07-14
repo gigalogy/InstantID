@@ -20,6 +20,9 @@ dist/
 # Log files
 *.log
 
+# Temporary files
+.DS_Store
+
 # Sensitive information
 .env
 
